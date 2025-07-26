@@ -1,82 +1,139 @@
-# ARK Ascended Launcher - GitHub Hosted Version
-# Updated: $(Get-Date -Format "yyyy-MM-dd")
+<#
+ARK Ascended Launcher
+Version: 2.0
+GitHub: https://github.com/doanryx/arklauncher
+#>
 
-function Show-Launcher {
-    Add-Type -AssemblyName System.Windows.Forms
-    Add-Type -AssemblyName System.Drawing
+# Load required assemblies
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+[System.Windows.Forms.Application]::EnableVisualStyles()
 
-    # Kill ARK if running
-    try {
-        $arkProcesses = Get-Process -Name "ArkAscended" -ErrorAction SilentlyContinue
-        if ($arkProcesses) {
-            $arkProcesses | Stop-Process -Force
-            Start-Sleep -Milliseconds 500
-        }
-    } catch {}
+# Configuration
+$ARK_EXE_PATH = ".\ShooterGame\Binaries\Win64\ArkAscended.exe"
+$GITHUB_REPO = "https://github.com/doanryx/arklauncher"
+$VERSION = "2.0"
 
-    $form = New-Object System.Windows.Forms.Form
-    $form.Text = "ARK Ascended Launcher (Cloud)"
-    $form.Size = New-Object System.Drawing.Size(420,220)
-    $form.StartPosition = "CenterScreen"
-    $form.TopMost = $true
-
-    # Version label
-    $versionLabel = New-Object System.Windows.Forms.Label
-    $versionLabel.Text = "v1.0 | GitHub Hosted"
-    $versionLabel.Location = New-Object System.Drawing.Point(20,20)
-    $versionLabel.AutoSize = $true
-    $form.Controls.Add($versionLabel)
-
-    # Main label
-    $label = New-Object System.Windows.Forms.Label
-    $label.Text = "ARK Ascended Launcher"
-    $label.Font = New-Object System.Drawing.Font("Arial",14,[System.Drawing.FontStyle]::Bold)
-    $label.AutoSize = $true
-    $label.Location = New-Object System.Drawing.Point(20,50)
-    $form.Controls.Add($label)
-
-    $button = New-Object System.Windows.Forms.Button
-    $button.Text = "Launch ARK"
-    $button.Size = New-Object System.Drawing.Size(150,40)
-    $button.Location = New-Object System.Drawing.Point(120,100)
-    $button.Add_Click({
+# Kill existing ARK processes
+function Close-ARKProcesses {
+    $processes = Get-Process -Name "ArkAscended" -ErrorAction SilentlyContinue
+    if ($processes) {
         try {
-            $exe = Join-Path $PSScriptRoot "ShooterGame\Binaries\Win64\ArkAscended.exe"
-            if (-not $PSScriptRoot) {
-                $exe = ".\ShooterGame\Binaries\Win64\ArkAscended.exe"
-            }
-            
-            if (Test-Path $exe) {
-                Start-Process $exe -ArgumentList "-noadmin" -WorkingDirectory (Split-Path $exe)
-                $form.Close()
-            } else {
-                [System.Windows.Forms.MessageBox]::Show("ARK executable not found at:`n$exe","Error","OK","Error")
-            }
+            $processes | Stop-Process -Force
+            Start-Sleep -Seconds 1
+            return $true
         } catch {
-            [System.Windows.Forms.MessageBox]::Show($_.Exception.Message,"Error","OK","Error")
+            [System.Windows.Forms.MessageBox]::Show(
+                "Failed to close ARK processes!`nPlease close manually and try again.",
+                "Error",
+                [System.Windows.Forms.MessageBoxButtons]::OK,
+                [System.Windows.Forms.MessageBoxIcon]::Error
+            )
+            return $false
         }
-    })
-    $form.Controls.Add($button)
-
-    $form.Add_Shown({$form.Activate()})
-    [void]$form.ShowDialog()
+    }
+    return $true
 }
 
 # Check for updates
-try {
-    $latestVersion = Invoke-RestMethod -Uri "https://raw.githubusercontent.com/YOURUSERNAME/YOURREPO/main/version.txt" -ErrorAction SilentlyContinue
-    if ($latestVersion -and $latestVersion -gt "1.0") {
-        $updateResult = [System.Windows.Forms.MessageBox]::Show(
-            "New version $latestVersion available! Update now?",
-            "Update Available",
-            [System.Windows.Forms.MessageBoxButtons]::YesNo,
-            [System.Windows.Forms.MessageBoxIcon]::Question
-        )
-        
-        if ($updateResult -eq "Yes") {
-            Start-Process "https://github.com/YOURUSERNAME/YOURREPO/releases/latest"
+function Check-ForUpdates {
+    try {
+        $latestVersion = (Invoke-RestMethod "$GITHUB_REPO/raw/main/version.txt" -ErrorAction Stop).Trim()
+        if ([version]$latestVersion -gt [version]$VERSION) {
+            $updateResult = [System.Windows.Forms.MessageBox]::Show(
+                "New version $latestVersion available!`nCurrent version: $VERSION`n`nOpen download page?",
+                "Update Available",
+                [System.Windows.Forms.MessageBoxButtons]::YesNo,
+                [System.Windows.Forms.MessageBoxIcon]::Information
+            )
+            
+            if ($updateResult -eq "Yes") {
+                Start-Process "$GITHUB_REPO/releases/latest"
+            }
+        }
+    } catch {
+        Write-Host "Update check failed: $_" -ForegroundColor Yellow
+    }
+}
+
+# Main UI Form
+$form = New-Object System.Windows.Forms.Form
+$form.Text = "ARK Ascended Launcher v$VERSION"
+$form.Size = New-Object System.Drawing.Size(450, 250)
+$form.StartPosition = "CenterScreen"
+$form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
+$form.MaximizeBox = $false
+$form.MinimizeBox = $false
+$form.TopMost = $true
+
+# UI Elements
+$label = New-Object System.Windows.Forms.Label
+$label.Text = "ARK Ascended Launcher"
+$label.Font = New-Object System.Drawing.Font("Arial", 14, [System.Drawing.FontStyle]::Bold)
+$label.AutoSize = $true
+$label.Location = New-Object System.Drawing.Point(20, 20)
+$form.Controls.Add($label)
+
+$versionLabel = New-Object System.Windows.Forms.Label
+$versionLabel.Text = "Version: $VERSION"
+$versionLabel.Location = New-Object System.Drawing.Point(20, 50)
+$versionLabel.AutoSize = $true
+$form.Controls.Add($versionLabel)
+
+$statusLabel = New-Object System.Windows.Forms.Label
+$statusLabel.Text = "Ready to launch"
+$statusLabel.Location = New-Object System.Drawing.Point(20, 150)
+$statusLabel.AutoSize = $true
+$form.Controls.Add($statusLabel)
+
+$button = New-Object System.Windows.Forms.Button
+$button.Text = "Launch ARK Ascended"
+$button.Size = New-Object System.Drawing.Size(150, 40)
+$button.Location = New-Object System.Drawing.Point(150, 100)
+$button.Add_Click({
+    $button.Enabled = $false
+    $statusLabel.Text = "Closing existing ARK processes..."
+    $form.Refresh()
+
+    if (Close-ARKProcesses) {
+        $statusLabel.Text = "Launching ARK Ascended..."
+        $form.Refresh()
+
+        if (Test-Path $ARK_EXE_PATH) {
+            try {
+                Start-Process $ARK_EXE_PATH -ArgumentList "-noadmin" -WorkingDirectory (Split-Path $ARK_EXE_PATH)
+                $form.Close()
+            } catch {
+                [System.Windows.Forms.MessageBox]::Show(
+                    "Failed to launch ARK:`n$_",
+                    "Error",
+                    [System.Windows.Forms.MessageBoxButtons]::OK,
+                    [System.Windows.Forms.MessageBoxIcon]::Error
+                )
+                $statusLabel.Text = "Launch failed"
+            }
+        } else {
+            [System.Windows.Forms.MessageBox]::Show(
+                "ARK executable not found at:`n$ARK_EXE_PATH",
+                "Error",
+                [System.Windows.Forms.MessageBoxButtons]::OK,
+                [System.Windows.Forms.MessageBoxIcon]::Error
+            )
+            $statusLabel.Text = "Executable not found"
         }
     }
-} catch {}
+    $button.Enabled = $true
+})
+$form.Controls.Add($button)
 
-Show-Launcher
+# Check for updates on startup
+Check-ForUpdates
+
+# Show the form
+$form.Add_Shown({$form.Actresh()})
+[void]$form.ShowDialog()
+
+# Self-cleanup if running from temp location
+if ($MyInvocation.MyCommand.Path -like "$env:temp\*") {
+    Remove-Item $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue
+}
